@@ -1,0 +1,32 @@
+{
+  "packageId": "com.magicrealism.invoker",
+  "host": "magicrealism-invoker.vercel.app",
+  "name": "MagicRealism Invoker",
+  "launcherName": "MagicRealism Invoker",
+  "display": "standalone",
+  "themeColor": "#0a0418",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#06010f",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "signingKey": {
+    "path": "../release.keystore",
+    "alias": "my-key-alias"
+  },
+  "splashScreenColors": {
+    "themeColor": "#0a0418",
+    "backgroundColor": "#06010f"
+  },
+  "iconUrl": "https://magicrealism-invoker.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://magicrealism-invoker.vercel.app/icons/icon-512-maskable.png",
+  "shortcuts": [],
+  "shareTarget": {},
+  "features": {},
+  "enableNotifications": false,
+  "orientation": "landscape",
+  "horizonOSAppMode": "immersive",
+  "applicationId": "0"
+}

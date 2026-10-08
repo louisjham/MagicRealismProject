@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+dist-ssr/
+**/dist/
+
+# Vite cache
+.vite/
+**/.vite/
+**/.vite-temp/
+
+# Local env files
+*.local
+
+# Agent internal / skills
+.agent/
+.agents/
+
+# OS
+.DS_Store

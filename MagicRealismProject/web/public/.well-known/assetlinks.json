@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.magicrealism.invoker",
+    "sha256_cert_fingerprints": [
+      "9C:AD:EF:CF:16:B5:42:7D:EC:22:B0:CB:94:90:C0:0D:0E:82:3B:15:C4:37:FF:2A:A8:29:37:02:60:8E:B0:D5"
+    ]
+  }
+}]

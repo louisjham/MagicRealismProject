@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WebXR Spellcasting - Quest 2 Passthrough</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: #ffffff;
+            z-index: 100;
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+    </style>
+    <!-- Import Maps polyfill -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+</head>
+<body>
+    <div id="info">WebXR Hand-Tracking Spells<br/>Flame, Spark, and Fireball (Quest 2 Monochrome Passthrough Optimized)</div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { ARButton } from 'three/addons/webxr/ARButton.js';
+
+        let container;
+        let camera, scene, renderer;
+        let controller1, controller2;
+        let hand1, hand2;
+
+        // Web Audio API context for procedural SFX
+        let audioCtx = null;
+
+        // Spell states
+        const spells = {
+            flame: { active: false, mesh: null },
+            spark: { active: false, particles: null },
+            fireball: { active: false, mesh: null, velocity: new THREE.Vector3() }
+        };
+
+        init();
+        animate();
+
+        function init() {
+            container = document.createElement('div');
+            document.body.appendChild(container);
+
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+            // Lighting for monochromatic Quest 2 passthrough depth and contrast
+            const light = new THREE.HemisphereLight(0xffffff, 0x444444, 3.0);
+            light.position.set(0, 5, 0);
+            scene.add(light);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            directionalLight.position.set(1, 3, 2);
+            scene.add(directionalLight);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Configure AR for Quest 2 (transparent background to view grayscale passthrough)
+            const arButton = ARButton.createButton(renderer, { 
+                requiredFeatures: ['hit-test', 'hand-tracking'],
+                optionalFeatures: ['dom-overlay'],
+                domOverlay: { root: document.getElementById('info') }
+            });
+            document.body.appendChild(arButton);
+
+            // Initialize Audio Context on user interaction (AR Button click)
+            arButton.addEventListener('click', () => {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                // Play sample humming drone to test audio startup
+                playHummingDrone();
+            });
+
+            // Controllers / Hands setup
+            controller1 = renderer.xr.getController(0);
+            scene.add(controller1);
+
+            controller2 = renderer.xr.getController(1);
+            scene.add(controller2);
+
+            hand1 = renderer.xr.getHand(0);
+            scene.add(hand1);
+
+            hand2 = renderer.xr.getHand(1);
+            scene.add(hand2);
+
+            setupSpellGeometries();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // --- PROCEDURAL SOUND FX GENERATORS ---
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        // 1. Crackling Sound for Sparks (Short bursts of filtered white noise)
+        function playCrackling() {
+            const ctx = getAudioContext();
+            const bufferSize = ctx.sampleRate * 0.15; // 150ms burst
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            const noise = ctx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.value = 1200;
+
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+
+            noise.start();
+        }
+
+        // 2. Humming Drone for Green Magic Elements (Low continuous modulated tone)
+        function playHummingDrone() {
+            const ctx = getAudioContext();
+            
+            const osc = ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(110, ctx.currentTime); // A2 note
+
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(300, ctx.currentTime);
+
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.05, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.5);
+            gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 1.5);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start();
+            osc.stop(ctx.currentTime + 1.5);
+        }
+
+        // 3. Roaring Sound for Fireball (Low rumbling noise sweep)
+        function playRoaring() {
+            const ctx = getAudioContext();
+            const bufferSize = ctx.sampleRate * 0.6; // 600ms roar
+            const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
+            const noise = ctx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(200, ctx.currentTime);
+            filter.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.3);
+            filter.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.6);
+            filter.Q.value = 3;
+
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.4, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+
+            noise.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+
+            noise.start();
+        }
+
+        // --- SCENE SETUP ---
+
+        function setupSpellGeometries() {
+            const flameGeo = new THREE.ConeGeometry(0.04, 0.12, 8);
+            const flameMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, wireframe: true });
+            spells.flame.mesh = new THREE.Mesh(flameGeo, flameMat);
+            spells.flame.mesh.visible = false;
+            scene.add(spells.flame.mesh);
+
+            const particleCount = 20;
+            const particleGeo = new THREE.BufferGeometry();
+            const positions = new Float32Array(particleCount * 3);
+            for(let i = 0; i < particleCount * 3; i++) positions[i] = (Math.random() - 0.5) * 0.1;
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const particleMat = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.015 });
+            spells.spark.particles = new THREE.Points(particleGeo, particleMat);
+            spells.spark.particles.visible = false;
+            scene.add(spells.spark.particles);
+
+            const fbGeo = new THREE.SphereGeometry(0.05, 16, 16);
+            const fbMat = new THREE.MeshBasicMaterial({ color: 0xff3300, wireframe: true });
+            spells.fireball.mesh = new THREE.Mesh(fbGeo, fbMat);
+            spells.fireball.mesh.visible = false;
+            scene.add(spells.fireball.mesh);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+
+        let triggerCounter = 0;
+
+        function render(timestamp, frame) {
+            if (frame) {
+                const session = renderer.xr.getSession();
+                for (const source of session.inputSources) {
+                    if (source.hand) {
+                        const indexTip = source.hand.get('index-finger-tip');
+                        if (indexTip) {
+                            const jointPose = frame.getJointPose(indexTip, renderer.xr.getReferenceSpace());
+                            if (jointPose) {
+                                spells.flame.mesh.position.copy(jointPose.transform.position);
+                                spells.flame.mesh.visible = true;
+
+                                // Periodically trigger procedural audio feedback for testing
+                                triggerCounter++;
+                                if (triggerCounter % 180 === 0) {
+                                    playCrackling();
+                                } else if (triggerCounter % 360 === 0) {
+                                    playRoaring();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
